@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AltarExtra · watch</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  :root{
+    --bg:#14161a; --panel:#1b1e24; --panel2:#1f232a; --line:#2a2e36;
+    --text:#e6e8ec; --muted:#7d838d; --red:#ff1f29;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 20px 48px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+  h1{font-size:18px;font-weight:600;letter-spacing:.2px;margin:0}
+  .tag{color:var(--red);font-weight:700}
+  .status{margin-left:auto;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:7px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#4a4f57;
+       box-shadow:0 0 0 3px rgba(255,31,41,.10)}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+        background:var(--line);border:1px solid var(--line);border-radius:12px;
+        overflow:hidden;margin-bottom:16px}
+  .kpi{background:var(--panel);padding:15px 18px}
+  .kpi .k{color:var(--muted);font-size:10.5px;text-transform:uppercase;
+          letter-spacing:.13em;margin-bottom:9px}
+  .kpi .v{font:600 30px/1 ui-monospace,"JetBrains Mono",Menlo,monospace}
+  .kpi .v small{font-size:13px;color:var(--muted);font-weight:500}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:16px 18px 14px;margin-bottom:16px}
+  .card-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .card-h .t{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#b9bec6}
+  .card-h .sub{font-size:11px;color:var(--muted);margin-left:auto}
+  .ranges{display:flex;gap:6px}
+  .ranges button{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+    font:500 11px/1 ui-sans-serif;padding:6px 10px;border-radius:7px;cursor:pointer}
+  .ranges button.on{background:rgba(255,31,41,.14);border-color:rgba(255,31,41,.45);color:#ffd9da}
+  .chart-h{height:340px;position:relative}
+  .bar-h{height:220px;position:relative}
+  .cols{display:grid;grid-template-columns:1fr 1.25fr;gap:16px}
+  @media(max-width:860px){.cols{grid-template-columns:1fr}}
+  @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .hm{display:grid;grid-template-columns:32px repeat(24,1fr);gap:3px;align-items:center}
+  .hm .hourlab,.hm .daylab{font-size:9px;color:var(--muted)}
+  .hm .hourlab{text-align:center}
+  .hm .daylab{text-align:right;padding-right:7px;font-size:10px}
+  .hm .cell{height:17px;border-radius:3px;background:#1f2228}
+  .hm-legend{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:10px;color:var(--muted)}
+  .hm-legend .sw{width:16px;height:11px;border-radius:2px}
+  footer{color:var(--muted);font-size:11.5px;margin-top:8px;display:flex;gap:18px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="tag">AltarExtra</span> watch</h1>
+    <div class="status"><span class="dot" id="dot"></span><span id="status">loading…</span></div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi"><div class="k">Now</div><div class="v" id="now">—</div></div>
+    <div class="kpi"><div class="k">Peak</div><div class="v" id="peak">—</div></div>
+    <div class="kpi"><div class="k">Average</div><div class="v" id="avg">—</div></div>
+    <div class="kpi"><div class="k">Uptime</div><div class="v" id="uptime">—</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <span class="t">Players over time</span>
+      <div class="ranges" id="ranges">
+        <button data-w="3600">1h</button>
+        <button data-w="21600">6h</button>
+        <button data-w="86400">24h</button>
+        <button data-w="604800">7d</button>
+        <button data-w="0" class="on">All</button>
+      </div>
+    </div>
+    <div class="chart-h"><canvas id="line"></canvas></div>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <div class="card-h"><span class="t">Busiest hours</span><span class="sub">avg by hour of day</span></div>
+      <div class="bar-h"><canvas id="bar"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><span class="t">When they're online</span><span class="sub">avg players · your local time</span></div>
+      <div class="hm" id="hm"></div>
+      <div class="hm-legend">
+        <span>less</span>
+        <span class="sw" style="background:#1f2228"></span>
+        <span class="sw" style="background:rgba(255,31,41,.30)"></span>
+        <span class="sw" style="background:rgba(255,31,41,.60)"></span>
+        <span class="sw" style="background:rgba(255,31,41,1)"></span>
+        <span>more</span>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span id="span">—</span>
+    <span id="samples">—</span>
+    <span>updates every ~10 min · gaps = asleep/unreachable</span>
+  </footer>
+</div>
+
+<script>
+const RED = "#ff1f29";
+let ROWS = [], lineChart, barChart, win = 0;
+
+const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+function fmtSpan(a,b){
+  if(!a) return "no data yet";
+  const h=(b-a)/3600;
+  if(h<1) return Math.round((b-a)/60)+" min tracked";
+  if(h<48) return h.toFixed(1)+" h tracked";
+  return (h/24).toFixed(1)+" days tracked";
+}
+
+async function load(){
+  let text;
+  try{ text = await (await fetch("data.csv?t="+Date.now())).text(); }
+  catch{ document.getElementById("status").textContent="can't load data.csv"; return; }
+
+  ROWS = text.trim().split(/\r?\n/).slice(1).filter(Boolean).map(l=>{
+    const p = l.split(",");
+    return { ts:+p[0], online:+p[1], count:+p[2] };
+  }).filter(r=>!isNaN(r.ts));
+
+  const onl = ROWS.filter(r=>r.online);
+  const counts = onl.map(r=>r.count);
+  const last = ROWS[ROWS.length-1];
+  const live = last && last.online;
+
+  document.getElementById("now").innerHTML = ROWS.length ? (live ? last.count+' <small>/100</small>' : 'asleep') : '—';
+  document.getElementById("peak").textContent   = counts.length?Math.max(...counts):"—";
+  document.getElementById("avg").textContent     = counts.length?mean(counts).toFixed(1):"—";
+  document.getElementById("uptime").innerHTML    = ROWS.length
+      ? Math.round(onl.length/ROWS.length*100)+' <small>%</small>' : "—";
+  document.getElementById("dot").style.background = live ? RED : "#4a4f57";
+  document.getElementById("status").textContent =
+    !ROWS.length ? "collecting — first point within ~10 min"
+                 : (live ? "last seen · "+last.count+" online" : "server asleep");
+  document.getElementById("span").textContent =
+    fmtSpan(ROWS.length?ROWS[0].ts:0, ROWS.length?last.ts:0);
+  document.getElementById("samples").textContent = ROWS.length+" samples";
+
+  renderLine(); renderBar(onl); renderHeatmap(onl);
+}
+
+function renderLine(){
+  const cut = win ? (Date.now()/1000 - win) : 0;
+  const rows = ROWS.filter(r=>r.ts>=cut);
+  const labels = rows.map(r=>new Date(r.ts*1000));
+  const series = rows.map(r=>r.online?r.count:null);
+  if(!lineChart){
+    const ctx=document.getElementById("line");
+    const g=ctx.getContext("2d").createLinearGradient(0,0,0,320);
+    g.addColorStop(0,"rgba(255,31,41,.30)"); g.addColorStop(1,"rgba(255,31,41,0)");
+    lineChart=new Chart(ctx,{type:"line",
+      data:{labels,datasets:[{data:series,borderColor:RED,backgroundColor:g,
+        borderWidth:2,pointRadius:0,tension:.25,fill:true,spanGaps:false}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+" players"}}},
+        scales:{x:{type:"time",time:{tooltipFormat:"MMM d HH:mm",
+            displayFormats:{hour:"HH:mm",day:"MMM d"}},
+            grid:{color:"#23262d"},ticks:{color:"#7d838d",maxRotation:0}},
+          y:{beginAtZero:true,grid:{color:"#23262d"},ticks:{color:"#7d838d"}}}}});
+  }else{
+    lineChart.data.labels=labels; lineChart.data.datasets[0].data=series; lineChart.update();
+  }
+}
+
+function renderBar(onl){
+  const buckets=Array.from({length:24},()=>[]);
+  onl.forEach(r=>buckets[new Date(r.ts*1000).getHours()].push(r.count));
+  const vals=buckets.map(b=>{const m=mean(b);return m==null?null:+m.toFixed(1);});
+  const labels=buckets.map((_,h)=>String(h).padStart(2,"0"));
+  if(!barChart){
+    barChart=new Chart(document.getElementById("bar"),{type:"bar",
+      data:{labels,datasets:[{data:vals,backgroundColor:"rgba(255,31,41,.55)",
+        borderColor:RED,borderWidth:1,borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          title:c=>c[0].label+":00",label:c=>(c.parsed.y??"—")+" avg"}}},
+        scales:{x:{grid:{display:false},ticks:{color:"#7d838d",autoSkip:true,maxTicksLimit:8}},
+          y:{beginAtZero:true,grid:{color:"#23262d"},ticks:{color:"#7d838d"}}}}});
+  }else{ barChart.data.datasets[0].data=vals; barChart.update(); }
+}
+
+function renderHeatmap(onl){
+  const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const order=[1,2,3,4,5,6,0];
+  const grid=Array.from({length:7},()=>Array.from({length:24},()=>[]));
+  onl.forEach(r=>{const d=new Date(r.ts*1000);
+    grid[order.indexOf(d.getDay())][d.getHours()].push(r.count);});
+  const avg=grid.map(row=>row.map(c=>mean(c)));
+  const max=Math.max(1,...avg.flat().filter(v=>v!=null));
+  let html='<div></div>';
+  for(let h=0;h<24;h++) html+=`<div class="hourlab">${h%6===0?h:""}</div>`;
+  for(let d=0;d<7;d++){
+    html+=`<div class="daylab">${days[d]}</div>`;
+    for(let h=0;h<24;h++){
+      const v=avg[d][h];
+      const bg=v==null?"#1f2228":`rgba(255,31,41,${(0.10+0.90*(v/max)).toFixed(3)})`;
+      const tip=v==null?`${days[d]} ${String(h).padStart(2,"0")}:00 — no data`
+        :`${days[d]} ${String(h).padStart(2,"0")}:00 — ${v.toFixed(1)} avg`;
+      html+=`<div class="cell" style="background:${bg}" title="${tip}"></div>`;
+    }
+  }
+  document.getElementById("hm").innerHTML=html;
+}
+
+document.getElementById("ranges").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  win=+b.dataset.w;
+  document.querySelectorAll("#ranges button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); renderLine();
+});
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
