@@ -17,13 +17,17 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install requests
-      - run: python poll.py
-      - name: commit reading
+      - name: poll and commit (race-safe)
         run: |
           git config user.name  "altar-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data.csv
-          git diff --quiet --cached && echo "no change" && exit 0
-          git commit -m "data: $(date -u +%FT%TZ)"
-          git pull --rebase --autostash || true
-          git push
+          for i in 1 2 3 4 5; do
+            git fetch -q origin main
+            git reset -q --hard origin/main      # start from the very latest
+            python poll.py                        # append the reading on top
+            git add data.csv
+            git commit -q -m "data: $(date -u +%FT%TZ)" || { echo "nothing to commit"; exit 0; }
+            if git push -q origin HEAD:main; then echo "pushed"; exit 0; fi
+            echo "push race on attempt $i, retrying"; sleep $((RANDOM % 5 + 2))
+          done
+          echo "failed after retries"; exit 1
