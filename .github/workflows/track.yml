@@ -1,7 +1,7 @@
 name: track
 on:
   schedule:
-    - cron: '*/10 * * * *'   # every 10 min (5 is the GitHub minimum; raise if you like)
+    - cron: '*/5 * * * *'   # every 10 min (5 is the GitHub minimum; raise if you like)
   workflow_dispatch:          # lets you run it on demand from the Actions tab
 permissions:
   contents: write
