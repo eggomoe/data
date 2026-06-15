@@ -1,0 +1,6 @@
+# One Minehut server name per line, exactly as it appears on Minehut.
+# Lines starting with # are ignored. Add competitors below AltarExtra.
+AltarExtra
+# Examples (replace with real server names):
+# SomeGenServer
+# AnotherPvPBox
